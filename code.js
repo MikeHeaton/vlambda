@@ -74,15 +74,27 @@ var cy = cytoscape({
 
 function getColor(name) {
   // Generate a color for the node named 'name'.
+  function isString(name) {
+    function matchBrackets(bra, n) {
+      console.log(n[0], n[n.length - 1]);
+      return (n[0] == bra && n[n.length - 1] == bra);}
+    return (matchBrackets('\'', name) || matchBrackets('\"', name) || matchBrackets('\`', name))
+  }
 
+  console.log("String", isString(name))
   // We want all numbers to be one color.
-  console.log(name, isNaN(name))
-  if (!isNaN(name)) {return 'blue';}
+  if (!isNaN(name)) {
+    return 'blue';
+  }
 
   // We want all identically named things to be same color.
   sameName = cy.$("[name= '" + name + "']")
   if (sameName.length > 0) {
     return sameName.data("mycolor")
+  }
+  // If the name represents a string, make the node green.
+  else if (isString(name)) {
+    return 'lime';
   }
   // Else generate a random color from the colormap (and convert it to hash).
   else {
