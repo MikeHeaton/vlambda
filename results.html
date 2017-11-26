@@ -1,0 +1,18 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>results - vambda 0.01</title>
+  </head>
+  <body>
+    <div id="bs-console">
+    </div>
+    <script src="biwascheme.js", id="exitjs">
+      (print "Hello, world!")
+      (print (current-date))
+      (console-log "ok.")
+      (define plusone (lambda (x) (+ x 1)))
+      (print ((lambda (y) (y 3)) plusone))
+    </script>
+  </body>
+</html>

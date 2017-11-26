@@ -1,17 +1,29 @@
 <!DOCTYPE html>
 <!-- This code is for demonstration purposes only.  You should not hotlink to Github, Rawgit, or files from the Cytoscape.js documentation in your production apps. -->
 <html>
-<head>
-<link href="style.css" rel="stylesheet" />
-<meta charset=utf-8 />
-<meta name="viewport" content="user-scalable=no, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, minimal-ui">
-<title>visualisp</title>
-<script src="mousetrap.min.js"></script>
-<script src="cytoscape.js"></script>
-</head>
-<body>
-<div id="cy"></div>
-<!-- Load appplication code at the end to ensure DOM is loaded -->
-<script src="code.js"></script>
-</body>
+  <head>
+    <link href="style.css" rel="stylesheet" />
+    <meta charset=utf-8 />
+    <meta name="viewport" content="user-scalable=no, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, minimal-ui">
+    <title>editor - vambda 0.01 </title>
+    <script src="mousetrap.min.js"></script>
+    <script src="cytoscape.js"></script>
+  </head>
+  <body>
+    <div id="cy"></div>
+    <div id="resultsButton">
+      <button onclick="parse(cy.$('node:selected'))">PARSE</button>
+    </div>
+    <div id="lispOutput"></div>
+    <div id="svld">
+      <button onclick="saveState()">SAVE</button>
+      <button onclick="loadState('loadFile')">LOAD</button>
+      <input type="file" id="loadFile">
+      <button onclick="resetGraph()">NEW</button>
+    </div>
+    <!-- Load appplication code at the end to ensure DOM is loaded -->
+    <script src="biwascheme.js"></script>
+    <script type="text/javascript" src="js-colormaps.js"></script>
+    <script src="code.js"></script>
+  </body>
 </html>
