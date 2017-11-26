@@ -17,8 +17,7 @@ var cy = cytoscape({
     'background-color': 'data(mycolor)',
     'border-color': 'blue',
     'border-width': 0,
-  },
-
+    }
   },{
   selector: 'edge',
   style: {
@@ -58,14 +57,14 @@ var cy = cytoscape({
     'shape': 'roundrectangle'
     }
   },{
-  selector: 'node[variable="true"]',
+  selector: "node[variable='true']",
   style: {
     'shape': 'diamond',
     'border-width': 5,
     'border-color': 'cyan',
     }
   }
- ],
+]
 });
 
 // =====================
@@ -80,21 +79,19 @@ function getColor(name) {
       return (n[0] == bra && n[n.length - 1] == bra);}
     return (matchBrackets('\'', name) || matchBrackets('\"', name) || matchBrackets('\`', name))
   }
+  var sameName = cy.$("[name= '" + name + "']");
 
-  console.log("String", isString(name))
   // We want all numbers to be one color.
   if (!isNaN(name)) {
     return 'blue';
   }
-
-  // We want all identically named things to be same color.
-  sameName = cy.$("[name= '" + name + "']")
-  if (sameName.length > 0) {
-    return sameName.data("mycolor")
-  }
   // If the name represents a string, make the node green.
   else if (isString(name)) {
     return 'lime';
+  }
+  // Look for something named the same, and make this node the same color.
+  else if (sameName.length > 0) {
+    return sameName.data("mycolor")
   }
   // Else generate a random color from the colormap (and convert it to hash).
   else {
@@ -243,6 +240,7 @@ function resetGraph() {
     cy.remove(cy.$(""));
   }
 }
+
 // ============
 // || PARSER ||
 // ============
@@ -262,21 +260,30 @@ function toLisp(node) {
   /* A node is either a:
     - parent === def or lambda, vs primitive
     - sink node === to be evaluated, vs not.*/
-  console.log("tolisp: ", node)
   if (node.isParent()) {
-    // representation is a lambda, or a define.
+    // the node is a lambda, or a define.
+    // Evaluate subnodes, defs first.
     var subNodes = node.children()
-
-    // There should be only one top level node.
-    var topLevelNode = subNodes.leaves()
-
+    var definitionNodes = subNodes.filter(isDefine);
+    // Hopefully there's exactly one execution node (?)
+    var executionNodes = subNodes.filter(n => (!isDefine(n) && subNodes.leaves().contains(n)));
+    console.log("defs", executionNodes)
+    // Set up variables of the function.
     var boundVariables = subNodes.filter("[variable='true']").map(n => n.data("name")).sort();
     var stringedBVars = boundVariables.filter(function (el, i, arr) {
 	                                             return arr.indexOf(el) === i;}).join(" ")
-    console.log("foo" ,stringedBVars)
-    // TODO: distinguish between lambda and define.
-    // TODO: deal with zero-arity.
-    var openRepr = "(lambda (" + stringedBVars + ") " + toLisp(topLevelNode) + ")"
+
+    // Evaluate definitions
+    var definitions = definitionNodes.map(function(ele, i, eles) {return "(define " + ele.data("name")+ " " + toLisp(ele) + ")";});
+    var executions = executionNodes.map(function(ele, i, eles) {return toLisp(ele);});
+    var runCode = definitions.concat(executions).join("\n")
+    console.log("lispdefs:", runCode)
+
+    var openRepr = "(lambda (" + stringedBVars + ") " + runCode + ")";
+    /*(
+    (lambda (y) (
+     (define double (lambda (x) ( (+ x x))))
+(double y))) 2)*/
   }
   else {
     var openRepr = node.data("name")
@@ -303,31 +310,23 @@ function toLisp(node) {
     var closedRepr = openRepr
   }
 
-  console.log("repr:", closedRepr)
+  console.log("repr:\n", closedRepr)
   return closedRepr
 
 }
 
+// =============
+// || HELPERS ||
+// =============
+
+function isDefine(node) {
+  return (node.isParent() && (node.data("name")) != "");};
 
 
 
 
 // LOAD TEST DATA
 
-var graphJson = JSON.parse('{"elements":{"nodes":[{"data":{"id":"ef53a5e9-fbe4-4e05-bb85-e808c13775d6","name":""},"position":{"x":322,"y":221},"group":"nodes","removed":false,"selected":true,"selectable":true,"locked":false,"grabbable":true,"classes":""},{"data":{"id":"255b08de-25aa-442b-bccc-8317b884f870","name":"x","variable":"true","parent":"ef53a5e9-fbe4-4e05-bb85-e808c13775d6"},"position":{"x":367,"y":263},"group":"nodes","removed":false,"selected":false,"selectable":true,"locked":false,"grabbable":true,"classes":""},{"data":{"id":"eccc53e0-5877-4cc3-9929-0b67fb19c2a3","name":"x","variable":"true","parent":"ef53a5e9-fbe4-4e05-bb85-e808c13775d6"},"position":{"x":277,"y":248},"group":"nodes","removed":false,"selected":false,"selectable":true,"locked":false,"grabbable":true,"classes":""},{"data":{"id":"72613afa-9acf-4cca-bcfe-dbef02b99c0f","name":"+","parent":"ef53a5e9-fbe4-4e05-bb85-e808c13775d6"},"position":{"x":315,"y":179},"group":"nodes","removed":false,"selected":false,"selectable":true,"locked":false,"grabbable":true,"classes":""}],"edges":[{"data":{"source":"255b08de-25aa-442b-bccc-8317b884f870","target":"72613afa-9acf-4cca-bcfe-dbef02b99c0f","id":"7ddbc279-f033-4041-a273-7ac4fe8137d3","name":""},"position":{},"group":"edges","removed":false,"selected":false,"selectable":true,"locked":false,"grabbable":true,"classes":""},{"data":{"source":"eccc53e0-5877-4cc3-9929-0b67fb19c2a3","target":"72613afa-9acf-4cca-bcfe-dbef02b99c0f","id":"abc5cfb4-ed70-4e42-b8fd-8692e5000c1f","name":""},"position":{},"group":"edges","removed":false,"selected":false,"selectable":true,"locked":false,"grabbable":true,"classes":""}]},"style":[{"selector":"node","style":{"label":"data(name)","text-valign":"center","color":"white","text-outline-width":"2px","text-outline-color":"blue","background-color":"blue","border-color":"blue","border-width":"2px"}},{"selector":"edge","style":{"curve-style":"bezier","width":"4px","target-arrow-shape":"triangle","line-color":"black","target-arrow-color":"black","target-label":"data(name)","target-text-offset":"20px","color":"white","text-outline-width":"2px","text-outline-color":"black"}},{"selector":"edge:selected","style":{"line-color":"red","target-arrow-color":"green","text-outline-color":"green"}},{"selector":"node:selected","style":{"text-outline-color":"green","border-color":"green"}},{"selector":"$node > node","style":{"background-color":"#bbb","text-valign":"top","text-halign":"center"}},{"selector":"node[variable = \'true\']","style":{"background-color":"cyan","shape":"diamond"}}],"zoomingEnabled":true,"userZoomingEnabled":true,"zoom":1,"minZoom":1e-50,"maxZoom":1e+50,"panningEnabled":true,"userPanningEnabled":true,"pan":{"x":0,"y":0},"boxSelectionEnabled":true,"renderer":{"name":"canvas"}}');
-//cy.json(graphJson);
-
-toLisp(cy.$('#673a3132-2fdc-43b0-bcdd-0dd158071d70'))
-toLisp(cy.$('#faef976c-a7ba-4323-9ea4-f8daf110bcd6'))
-toLisp(cy.$('#2819ebd8-21a8-47fe-bb84-6ab9376122e7'))
-
-
-/* TODO
-- numbered arguments
-- Tests
-- defun
--- multiline statements (introduces multiple topline nodes :/)
-- better deletion
-- better addition to blocks
-
-*/
+var graphString = '{"elements":{"nodes":[{"data":{"mycolor":"blue","id":"9329df10-1d30-4cde-8d4a-2af23812feea","name":""},"position":{"x":262.75,"y":160.5},"group":"nodes","removed":false,"selected":true,"selectable":true,"locked":false,"grabbable":true,"classes":""},{"data":{"mycolor":"blue","id":"74101e30-0094-444d-a24d-51dea151a23d","name":"y","parent":"9329df10-1d30-4cde-8d4a-2af23812feea","variable":"true"},"position":{"x":337,"y":172},"group":"nodes","removed":false,"selected":false,"selectable":true,"locked":false,"grabbable":true,"classes":""},{"data":{"mycolor":"#ffd000","id":"07fbcd54-d63d-40b9-844d-201d10dd693c","name":"double","parent":"9329df10-1d30-4cde-8d4a-2af23812feea"},"position":{"x":338,"y":109},"group":"nodes","removed":false,"selected":false,"selectable":true,"locked":false,"grabbable":true,"classes":""},{"data":{"mycolor":"#ffd000","id":"d13c5cc3-3452-465f-b254-6af6f2ce0582","name":"double","parent":"9329df10-1d30-4cde-8d4a-2af23812feea"},"position":{"x":223.5,"y":172.75},"group":"nodes","removed":false,"selected":false,"selectable":true,"locked":false,"grabbable":true,"classes":""},{"data":{"mycolor":"#1ed315","id":"5affa954-4443-49c4-a627-2f1fedd18b1c","name":"x","variable":"true","parent":"d13c5cc3-3452-465f-b254-6af6f2ce0582"},"position":{"x":192,"y":196},"group":"nodes","removed":false,"selected":false,"selectable":true,"locked":false,"grabbable":true,"classes":""},{"data":{"mycolor":"#1ed315","id":"4d1f3c1a-14c0-4dc7-b009-a5908da3954e","name":"x","variable":"true","parent":"d13c5cc3-3452-465f-b254-6af6f2ce0582"},"position":{"x":255,"y":194},"group":"nodes","removed":false,"selected":false,"selectable":true,"locked":false,"grabbable":true,"classes":""},{"data":{"mycolor":"#006aad","id":"ffd686f2-7252-4e70-954a-fc4be6a4bd88","name":"+","parent":"d13c5cc3-3452-465f-b254-6af6f2ce0582"},"position":{"x":223,"y":147},"group":"nodes","removed":false,"selected":false,"selectable":true,"locked":false,"grabbable":true,"classes":""},{"data":{"mycolor":"blue","id":"24bc44f0-d6e7-4044-83f9-c8cc684a71d7","name":"2"},"position":{"x":282,"y":315},"group":"nodes","removed":false,"selected":false,"selectable":true,"locked":false,"grabbable":true,"classes":""}],"edges":[{"data":{"source":"74101e30-0094-444d-a24d-51dea151a23d","target":"07fbcd54-d63d-40b9-844d-201d10dd693c","id":"90ad44c5-36e4-4413-b3e6-45b4a05bbbd2","name":""},"position":{},"group":"edges","removed":false,"selected":false,"selectable":true,"locked":false,"grabbable":true,"classes":""},{"data":{"source":"5affa954-4443-49c4-a627-2f1fedd18b1c","target":"ffd686f2-7252-4e70-954a-fc4be6a4bd88","id":"fba2c17f-c590-4aef-b398-e65deec4c856","name":""},"position":{},"group":"edges","removed":false,"selected":false,"selectable":true,"locked":false,"grabbable":true,"classes":""},{"data":{"source":"4d1f3c1a-14c0-4dc7-b009-a5908da3954e","target":"ffd686f2-7252-4e70-954a-fc4be6a4bd88","id":"51214555-2336-464d-ad2c-3e4f220c1fc5","name":""},"position":{},"group":"edges","removed":false,"selected":false,"selectable":true,"locked":false,"grabbable":true,"classes":""},{"data":{"source":"24bc44f0-d6e7-4044-83f9-c8cc684a71d7","target":"9329df10-1d30-4cde-8d4a-2af23812feea","id":"480acbf7-4b6d-4b1f-bf4a-b6948451b270","name":""},"position":{},"group":"edges","removed":false,"selected":false,"selectable":true,"locked":false,"grabbable":true,"classes":""}]},"style":[{"selector":"node","style":{"label":"data(name)","text-valign":"center","text-outline-width":"2px","text-outline-color":"blue","color":"white","background-color":"data(mycolor)","border-color":"blue","border-width":"0px"}},{"selector":"edge","style":{"curve-style":"bezier","width":"4px","target-arrow-shape":"triangle","line-color":"black","target-arrow-color":"black","target-label":"data(name)","target-text-offset":"20px","color":"white","text-outline-width":"2px","text-outline-color":"black"}},{"selector":"edge:selected","style":{"line-color":"red","target-arrow-color":"red","text-outline-color":"red"}},{"selector":"node:selected","style":{"border-color":"red","border-width":"5px"}},{"selector":"$node > node","style":{"background-color":"white","text-valign":"top","text-halign":"center","border-width":"5px","shape":"roundrectangle"}},{"selector":"node[variable = \'true\']","style":{"shape":"diamond","border-width":"5px","border-color":"cyan"}}],"zoomingEnabled":true,"userZoomingEnabled":true,"zoom":1,"minZoom":1e-50,"maxZoom":1e+50,"panningEnabled":true,"userPanningEnabled":true,"pan":{"x":134,"y":117},"boxSelectionEnabled":true,"renderer":{"name":"canvas"}}';
+var graphJson = JSON.parse(graphString);
+cy.json(graphJson);
