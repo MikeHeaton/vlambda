@@ -14,9 +14,9 @@ var cy = cytoscape({
     'text-outline-width': 2,
     'text-outline-color': 'blue',
     'color': 'white',
-    'background-color': 'data(mycolor)',
     'border-color': 'blue',
     'border-width': 0,
+    'background-color': 'data(defaultColor)'
     }
   },{
   selector: 'edge',
@@ -57,11 +57,20 @@ var cy = cytoscape({
     'shape': 'roundrectangle'
     }
   },{
-  selector: "node[variable='true']",
+  selector: "node[?variable]",
   style: {
     'shape': 'diamond',
     'border-width': 5,
     'border-color': 'cyan',
+    'background-color': 'cyan'
+    }
+  },{
+    selector: "node:selected[?variable]",
+    style: {
+      'shape': 'diamond',
+      'border-width': 5,
+      'background-color': 'cyan',
+      'border-color': 'red'
     }
   }
 ]
@@ -71,92 +80,288 @@ var cy = cytoscape({
 // || GRAPH FUNCTIONS ||
 // =====================
 
-function getColor(name) {
-  // Generate a color for the node named 'name'.
-  function isString(name) {
-    function matchBrackets(bra, n) {
-      console.log(n[0], n[n.length - 1]);
-      return (n[0] == bra && n[n.length - 1] == bra);}
-    return (matchBrackets('\'', name) || matchBrackets('\"', name) || matchBrackets('\`', name))
-  }
-  var sameName = cy.$("[name= '" + name + "']");
-
-  // We want all numbers to be one color.
-  if (!isNaN(name)) {
-    return 'blue';
-  }
-  // If the name represents a string, make the node green.
-  else if (isString(name)) {
-    return 'lime';
-  }
-  // Look for something named the same, and make this node the same color.
-  else if (sameName.length > 0) {
-    return sameName.data("mycolor")
-  }
-  // Else generate a random color from the colormap (and convert it to hash).
-  else {
-    return '#' + interpolateLinearly(Math.random(), prism).map(x => Math.floor(255 * x).toString(16).padStart(2, "0")).join("");
-  }
-}
-
 function newNode(pos) {
-  var name =  window.prompt("name:", "");
+  var name = getName()
+  console.log(name)
   if (!(name === null)) {
-    color = getColor(name)
-    console.log(color)
+    var color = getColor(name)
     var newNode = cy.add({group: 'nodes',
                         position: pos,
-                        data: {mycolor: color}
+                        data: {'variable': false,
+                        'name': name,
+                        'defaultColor': color}
                       });
-    rename(newNode, name);
+    newNode.select();
+    return newNode
   }
-  return newNode
+
 };
 
 function newEdge(origin, dest) {
-  var name =  window.prompt("name:", "");
+  var name = getName();
   if (!(name === null)) {
     var newEdge = cy.add({
             group: "edges",
             style: {'target-arrow-shape': 'triangle'},
             data: {source: origin.id(),
-                   target: dest.id()},
+                   target: dest.id(),
+                   name: name},
             selectable: true
           });
-    rename(newEdge, name);
   }
+  origin.deselect();
+  dest.select();
   return newEdge
 };
 
-function rename (target, newName=null) {
-  if (newName === null) {
-    // if no parameter passed, prompt for the name.
-    newName = window.prompt("name:", "");
+function getColor(name, node=null) {
+  // Method to generate a color for the node that the method is called on.
+  function isString(name) {
+    function matchBrackets(bra, n) {
+      return (n[0] == bra && n[n.length - 1] == bra);}
+    return (matchBrackets('\'', name) || matchBrackets('\"', name) || matchBrackets('\`', name))
   }
-  if (!(newName === null)) {
-    target.select();
-    target.data('name', newName);
-  }
-  console.log(target)
-  keys_pressed = new Set();
-};
 
-function toggleVariable (target) {
-  if (!target.data('variable') || target.data('variable') == 'false') {
-    target.data('variable', 'true');
+  if (node === null) {var sameNamedEles = cy.$("[name='" + name + "']");}
+  else {var sameNamedEles = cy.$("[name='" + name + "']").difference(node);}
+
+  // Look for something named the same, and make this node the same color.
+  if (sameNamedEles.length > 0) {
+    console.log("found similar", sameNamedEles.data("defaultColor"));
+    return sameNamedEles.data("defaultColor");
   }
-  else if (target.data('variable') == 'true') {
-    target.data('variable', 'false');
+  // If the name represents a string, make the node green.
+  else if (isString(name)) {
+    return 'lime';
+  }
+  // We want numbers (including floats, ints, etc) to be one color.
+  else if (!isNaN(name)) {
+    return 'blue';
+  }
+  // Else generate a random color from a colormap (and convert it to hash).
+  else {
+    return '#' + interpolateLinearly(Math.random(), prism).map(x => Math.floor(255 * x).toString(16).padStart(2, "0")).join("");
   }
 }
+cytoscape('collection', 'getColor', function() {return getColor(this.data('name'), node=this)});
+
+function setColor() {
+  color = this.getColor();
+  console.log("new color:", color)
+  this.data('defaultColor', color);
+}
+cytoscape('collection', 'setColor', setColor);
+
+function rename(node, newName=null) {
+  if (newName === null) {
+    newName = getName();
+  }
+  if (!(newName === null)) {
+    node.data('name', newName);
+    console.log("name:", node.data('name'))
+    node.setColor()
+  }
+
+};
+cytoscape('collection', 'rename', function(newName=null) {rename(this, newName=newName)});
+
+function toggleVariable () {
+  this.data('variable', (!this.data('variable')))
+  console.log(this.data('variable'))
+}
+cytoscape('collection', 'toggleVariable', toggleVariable);
+
+// We need to override the 'remove' method so that it doesn't remove children.
+// Maybe we can do other interesting stuff too, later?
+remove = function (notifyRenderer) {
+  removeFromArray = function (arr, ele, manyCopies) {
+    for (var i = arr.length; i >= 0; i--) {
+      if (arr[i] === ele) {
+        arr.splice(i, 1);
+
+        if (!manyCopies) {
+          break;
+        }
+      }
+    }
+  };
+
+  var self = this;
+  var removed = [];
+  var elesToRemove = [];
+  var elesToRemoveIds = {};
+  var cy = self._private.cy;
+
+  if (notifyRenderer === undefined) {
+    notifyRenderer = true;
+  }
+
+  // add connected edges
+  function addConnectedEdges(node) {
+    var edges = node._private.edges;
+    for (var i = 0; i < edges.length; i++) {
+      add(edges[i]);
+    }
+  }
+
+  /* THIS SECTION REMOVED FROM ORIGINAL
+  // add descendant nodes
+  function addChildren(node) {
+    var children = node._private.children;
+
+    for (var i = 0; i < children.length; i++) {
+      add(children[i]);
+    }
+  }*/
+
+  function add(ele) {
+    var alreadyAdded = elesToRemoveIds[ele.id()];
+    if (alreadyAdded) {
+      return;
+    } else {
+      elesToRemoveIds[ele.id()] = true;
+    }
+
+    if (ele.isNode()) {
+      elesToRemove.push(ele); // nodes are removed last
+
+      addConnectedEdges(ele);
+      // addChildren(ele);
+    } else {
+      elesToRemove.unshift(ele); // edges are removed first
+    }
+  }
+
+  // make the list of elements to remove
+  // (may be removing more than specified due to connected edges etc)
+
+  for (var i = 0, l = self.length; i < l; i++) {
+    var ele = self[i];
+
+    add(ele);
+  }
+
+  function removeEdgeRef(node, edge) {
+    var connectedEdges = node._private.edges;
+
+    removeFromArray(connectedEdges, edge);
+
+    // removing an edges invalidates the traversal cache for its nodes
+    node.clearTraversalCache();
+  }
+
+  function removeParallelRefs(edge) {
+    // removing an edge invalidates the traversal caches for the parallel edges
+    edge.parallelEdges().clearTraversalCache();
+  }
+
+  var alteredParents = [];
+  alteredParents.ids = {};
+
+  function removeChildRef(parent, ele) {
+    ele = ele[0];
+    parent = parent[0];
+
+    var children = parent._private.children;
+    var pid = parent.id();
+
+    removeFromArray(children, ele);
+
+    if (!alteredParents.ids[pid]) {
+      alteredParents.ids[pid] = true;
+      alteredParents.push(parent);
+    }
+  }
+
+  self.dirtyCompoundBoundsCache();
+
+  cy.removeFromPool(elesToRemove); // remove from core pool
+
+  for (var _i5 = 0; _i5 < elesToRemove.length; _i5++) {
+    var _ele3 = elesToRemove[_i5];
+
+    // mark as removed
+    _ele3._private.removed = true;
+
+    // add to list of removed elements
+    removed.push(_ele3);
+
+    if (_ele3.isEdge()) {
+      // remove references to this edge in its connected nodes
+      var src = _ele3.source()[0];
+      var tgt = _ele3.target()[0];
+
+      removeEdgeRef(src, _ele3);
+      removeEdgeRef(tgt, _ele3);
+      removeParallelRefs(_ele3);
+    } else {
+      // remove reference to parent
+      var parent = _ele3.parent();
+
+      if (parent.length !== 0) {
+        removeChildRef(parent, _ele3);
+      }
+    }
+  }
+
+  // check to see if we have a compound graph or not
+  var elesStillInside = cy._private.elements;
+  cy._private.hasCompoundNodes = false;
+  for (var _i6 = 0; _i6 < elesStillInside.length; _i6++) {
+    var _ele4 = elesStillInside[_i6];
+
+    if (_ele4.isParent()) {
+      cy._private.hasCompoundNodes = true;
+      break;
+    }
+  }
+
+  if (removed.length > 0) {
+    var removedElements = this.cy().$(removed.map(e => '#'+e.id()).join(','));
+    console.log(removedElements)
+    if (notifyRenderer) {
+      this.cy().notify({
+        type: 'remove',
+        eles: removedElements
+      });
+    }
+    removedElements.emit('remove');
+  }
+
+  /*if (removedElements.size() > 0) {
+    // must manually notify since trigger won't do this automatically once removed
+
+
+  }*/
+
+  // the parents who were modified by the removal need their style updated
+  for (var _i7 = 0; _i7 < alteredParents.length; _i7++) {
+    var _ele5 = alteredParents[_i7];
+
+    if (!_ele5.removed()) {
+      _ele5.updateStyle();
+    }
+  }
+
+  //return new Collection(cy, removed);
+};
+cytoscape('collection', 'delete', remove);
 
 // =========================
 // || USER INPUT HANDLERS ||
 // =========================
 
+function getName() {
+  newName = window.prompt("name:", "")
+  keys_pressed = new Set();
+  console.log((newName === null), "nullness", name)
+  return newName
+}
+
 // Double-tap to add a new node
 var dclick_tappedBefore;
 var dclick_tappedTimeout;
+
 cy.on('tap', function(event) {
   var dclick_tappedNow = event.target;
   if (dclick_tappedTimeout && dclick_tappedBefore) {
@@ -179,7 +384,7 @@ cy.on('tap', function(event) {
 // Hold 'e' and tap to make a new edge
 var newEdge_tappedBefore;
 var newEdge_tappedTimeout;
-cy.on('select', 'node', function(event) {
+cy.on('tap', 'node', function(event) {
   var newEdge_tappedNow = event.target;
   if (newEdge_tappedNow.isNode() && newEdge_tappedBefore && keys_pressed.has('E')) {
     newEdge(newEdge_tappedBefore, newEdge_tappedNow)
@@ -199,9 +404,9 @@ Mousetrap.bind('l', function() {
   'keypress');
 
 // Backspace to delete selection
-Mousetrap.bind('backspace', function() { cy.$(':selected').remove();});
+Mousetrap.bind('backspace', function() { cy.$(':selected').delete ();});
 
-Mousetrap.bind('V', function() { toggleVariable(cy.$(':selected'));});
+Mousetrap.bind('V', function() { cy.$(':selected').toggleVariable();});
 Mousetrap.bind('P', function() { toLisp(cy.$(':selected'));});
 
 // Recognise keys pressed down
@@ -267,9 +472,8 @@ function toLisp(node) {
     var definitionNodes = subNodes.filter(isDefine);
     // Hopefully there's exactly one execution node (?)
     var executionNodes = subNodes.filter(n => (!isDefine(n) && subNodes.leaves().contains(n)));
-    console.log("defs", executionNodes)
     // Set up variables of the function.
-    var boundVariables = subNodes.filter("[variable='true']").map(n => n.data("name")).sort();
+    var boundVariables = subNodes.filter("[?variable]").map(n => n.data("name")).sort();
     var stringedBVars = boundVariables.filter(function (el, i, arr) {
 	                                             return arr.indexOf(el) === i;}).join(" ")
 
@@ -277,7 +481,6 @@ function toLisp(node) {
     var definitions = definitionNodes.map(function(ele, i, eles) {return "(define " + ele.data("name")+ " " + toLisp(ele) + ")";});
     var executions = executionNodes.map(function(ele, i, eles) {return toLisp(ele);});
     var runCode = definitions.concat(executions).join("\n")
-    console.log("lispdefs:", runCode)
 
     var openRepr = "(lambda (" + stringedBVars + ") " + runCode + ")";
     /*(
@@ -303,14 +506,12 @@ function toLisp(node) {
     })
 
     stringedEdges = stringedNamedEdges.concat(stringedUnnamedEdges).join(" ")
-    console.log("namedEdges", stringedEdges)
     var closedRepr = "(" + openRepr + " " + stringedEdges + ")";
   }
   else {
     var closedRepr = openRepr
   }
 
-  console.log("repr:\n", closedRepr)
   return closedRepr
 
 }
@@ -323,10 +524,8 @@ function isDefine(node) {
   return (node.isParent() && (node.data("name")) != "");};
 
 
-
-
 // LOAD TEST DATA
-
+/*
 var graphString = '{"elements":{"nodes":[{"data":{"mycolor":"blue","id":"9329df10-1d30-4cde-8d4a-2af23812feea","name":""},"position":{"x":262.75,"y":160.5},"group":"nodes","removed":false,"selected":true,"selectable":true,"locked":false,"grabbable":true,"classes":""},{"data":{"mycolor":"blue","id":"74101e30-0094-444d-a24d-51dea151a23d","name":"y","parent":"9329df10-1d30-4cde-8d4a-2af23812feea","variable":"true"},"position":{"x":337,"y":172},"group":"nodes","removed":false,"selected":false,"selectable":true,"locked":false,"grabbable":true,"classes":""},{"data":{"mycolor":"#ffd000","id":"07fbcd54-d63d-40b9-844d-201d10dd693c","name":"double","parent":"9329df10-1d30-4cde-8d4a-2af23812feea"},"position":{"x":338,"y":109},"group":"nodes","removed":false,"selected":false,"selectable":true,"locked":false,"grabbable":true,"classes":""},{"data":{"mycolor":"#ffd000","id":"d13c5cc3-3452-465f-b254-6af6f2ce0582","name":"double","parent":"9329df10-1d30-4cde-8d4a-2af23812feea"},"position":{"x":223.5,"y":172.75},"group":"nodes","removed":false,"selected":false,"selectable":true,"locked":false,"grabbable":true,"classes":""},{"data":{"mycolor":"#1ed315","id":"5affa954-4443-49c4-a627-2f1fedd18b1c","name":"x","variable":"true","parent":"d13c5cc3-3452-465f-b254-6af6f2ce0582"},"position":{"x":192,"y":196},"group":"nodes","removed":false,"selected":false,"selectable":true,"locked":false,"grabbable":true,"classes":""},{"data":{"mycolor":"#1ed315","id":"4d1f3c1a-14c0-4dc7-b009-a5908da3954e","name":"x","variable":"true","parent":"d13c5cc3-3452-465f-b254-6af6f2ce0582"},"position":{"x":255,"y":194},"group":"nodes","removed":false,"selected":false,"selectable":true,"locked":false,"grabbable":true,"classes":""},{"data":{"mycolor":"#006aad","id":"ffd686f2-7252-4e70-954a-fc4be6a4bd88","name":"+","parent":"d13c5cc3-3452-465f-b254-6af6f2ce0582"},"position":{"x":223,"y":147},"group":"nodes","removed":false,"selected":false,"selectable":true,"locked":false,"grabbable":true,"classes":""},{"data":{"mycolor":"blue","id":"24bc44f0-d6e7-4044-83f9-c8cc684a71d7","name":"2"},"position":{"x":282,"y":315},"group":"nodes","removed":false,"selected":false,"selectable":true,"locked":false,"grabbable":true,"classes":""}],"edges":[{"data":{"source":"74101e30-0094-444d-a24d-51dea151a23d","target":"07fbcd54-d63d-40b9-844d-201d10dd693c","id":"90ad44c5-36e4-4413-b3e6-45b4a05bbbd2","name":""},"position":{},"group":"edges","removed":false,"selected":false,"selectable":true,"locked":false,"grabbable":true,"classes":""},{"data":{"source":"5affa954-4443-49c4-a627-2f1fedd18b1c","target":"ffd686f2-7252-4e70-954a-fc4be6a4bd88","id":"fba2c17f-c590-4aef-b398-e65deec4c856","name":""},"position":{},"group":"edges","removed":false,"selected":false,"selectable":true,"locked":false,"grabbable":true,"classes":""},{"data":{"source":"4d1f3c1a-14c0-4dc7-b009-a5908da3954e","target":"ffd686f2-7252-4e70-954a-fc4be6a4bd88","id":"51214555-2336-464d-ad2c-3e4f220c1fc5","name":""},"position":{},"group":"edges","removed":false,"selected":false,"selectable":true,"locked":false,"grabbable":true,"classes":""},{"data":{"source":"24bc44f0-d6e7-4044-83f9-c8cc684a71d7","target":"9329df10-1d30-4cde-8d4a-2af23812feea","id":"480acbf7-4b6d-4b1f-bf4a-b6948451b270","name":""},"position":{},"group":"edges","removed":false,"selected":false,"selectable":true,"locked":false,"grabbable":true,"classes":""}]},"style":[{"selector":"node","style":{"label":"data(name)","text-valign":"center","text-outline-width":"2px","text-outline-color":"blue","color":"white","background-color":"data(mycolor)","border-color":"blue","border-width":"0px"}},{"selector":"edge","style":{"curve-style":"bezier","width":"4px","target-arrow-shape":"triangle","line-color":"black","target-arrow-color":"black","target-label":"data(name)","target-text-offset":"20px","color":"white","text-outline-width":"2px","text-outline-color":"black"}},{"selector":"edge:selected","style":{"line-color":"red","target-arrow-color":"red","text-outline-color":"red"}},{"selector":"node:selected","style":{"border-color":"red","border-width":"5px"}},{"selector":"$node > node","style":{"background-color":"white","text-valign":"top","text-halign":"center","border-width":"5px","shape":"roundrectangle"}},{"selector":"node[variable = \'true\']","style":{"shape":"diamond","border-width":"5px","border-color":"cyan"}}],"zoomingEnabled":true,"userZoomingEnabled":true,"zoom":1,"minZoom":1e-50,"maxZoom":1e+50,"panningEnabled":true,"userPanningEnabled":true,"pan":{"x":134,"y":117},"boxSelectionEnabled":true,"renderer":{"name":"canvas"}}';
 var graphJson = JSON.parse(graphString);
-cy.json(graphJson);
+cy.json(graphJson);*/
