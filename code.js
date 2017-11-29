@@ -109,6 +109,7 @@ function newEdge(origin, dest) {
             selectable: true
           });
   }
+  setParent(origin, dest.parent())
   origin.deselect();
   dest.select();
   return newEdge
@@ -186,6 +187,7 @@ remove = function (notifyRenderer) {
     }
   };
 
+<<<<<<< Updated upstream
   var self = this;
   var removed = [];
   var elesToRemove = [];
@@ -194,6 +196,15 @@ remove = function (notifyRenderer) {
 
   if (notifyRenderer === undefined) {
     notifyRenderer = true;
+=======
+function setParent(node, parent) {
+  node.move({parent: parent.id()})
+}
+
+function toggleVariable (target) {
+  if (!target.data('variable') || target.data('variable') == 'false') {
+    target.data('variable', 'true');
+>>>>>>> Stashed changes
   }
 
   // add connected edges
@@ -398,7 +409,7 @@ Mousetrap.bind('l', function() {
   var parent = newNode();
   var componentz = cy.$('node:selected').closedNeighbourhood() ;
   componentz.forEach(function(component){
-    component.move({parent: parent.id()});
+    setParent(component, parent);
     })
   },
   'keypress');
