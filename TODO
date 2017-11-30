@@ -1,0 +1,45 @@
+
+FUNCTIONALITY
+> distinguish between lambda and define.
+> make defines happen alongside executions.
+> deal with zero-arity.
+> Allow 'insertions' into names: (- {} 0) <- 3
+  >> Evaluate whether this is a good idea! Readability versus elegance.
+> Deleting a parent shouldn't delete the children.
+  >> Related: option to remove nodes from lambda.
+> Undo
+> COMMENTS
+> When adding an arrow into an L'd node, the source/sink should be added to the L too.
+> If there's no label on the arrow, it shoudl use the name of the source instead.
+
+UI
+http://js.cytoscape.org/#extensions
+> Order (unnamed) edges by anti-clockwise order
+> snap to grid
+> Better save/load interface
+> make a proper repl, with scrolling.
+> Have color check happen when renaming, as well as creating.
+> When creating common functions, it should prepopulate argument nodes.
+  >> if, +-*/, iota, map, mod etc.
+  >> In fact, most predefined functions if I can be bothered.
+> Force-directed layout!!!
+> Confirmation box on load
+
+
+META
+> Write tests
+> Register domain name
+> Make a post / statement / presentation
+> Docs
+
+
+DONE
+> colour strings (25/11/17)
+
+
+Packages:
+Elesfn.remove can be found in line ~2500 of cytoscape.js.
+The package should /probably/ use
+  var elesfn = Element.prototype = Collection.prototype;
+and then define/redefine elesfn.foo like in cytoscape.js.
+But I'm not exactly sure how packages work, look at another eg.
