@@ -2,6 +2,7 @@
 // || GRAPH SETUP ||
 // =================
 
+//cytoscape.use( require('undo-redo') );
 var cy = cytoscape({
   container: document.getElementById('cy'),
   boxSelectionEnabled: true,
@@ -17,6 +18,16 @@ var cy = cytoscape({
     'border-color': 'blue',
     'border-width': 0,
     'background-color': 'data(defaultColor)'
+    }
+  },{
+  selector: '$node > node',
+  style: {
+    'background-color': 'white',
+    'text-valign': 'top',
+    'text-halign': 'center',
+    'border-width': 5,
+    'shape': 'roundrectangle',
+    'border-color': 'gray'
     }
   },{
   selector: 'edge',
@@ -48,15 +59,6 @@ var cy = cytoscape({
     'border-width': 5,
     }
   },{
-  selector: '$node > node',
-  style: {
-    'background-color': 'white',
-    'text-valign': 'top',
-    'text-halign': 'center',
-    'border-width': 5,
-    'shape': 'roundrectangle'
-    }
-  },{
   selector: "node[?variable]",
   style: {
     'shape': 'diamond',
@@ -83,37 +85,45 @@ var cy = cytoscape({
 function newNode(pos) {
   var name = getName()
   console.log(name)
+  console.log(pos)
   if (!(name === null)) {
     var color = getColor(name)
-    var newNode = cy.add({group: 'nodes',
+    var createdNode = cy.add({group: 'nodes',
                         position: pos,
                         data: {'variable': false,
                         'name': name,
                         'defaultColor': color}
                       });
-    newNode.select();
-    return newNode
+    cy.$().deselect();
+    createdNode.select();
+    return createdNode
   }
-
 };
 
 function newEdge(origin, dest) {
-  var name = getName();
-  if (!(name === null)) {
-    var newEdge = cy.add({
-            group: "edges",
-            style: {'target-arrow-shape': 'triangle'},
-            data: {source: origin.id(),
-                   target: dest.id(),
-                   name: name},
-            selectable: true
-          });
-  }
-  setParent(origin, dest.parent())
+  var newEdge = cy.add({
+          group: "edges",
+          style: {'target-arrow-shape': 'triangle'},
+          data: {source: origin.id(),
+                 target: dest.id(),
+                 name: name},
+          selectable: true
+        });
+  fixParent(dest);
+  //origin.setParent(dest.parent())
   origin.deselect();
   dest.select();
   return newEdge
 };
+
+function fixParent(dest) {
+  // set origin's parent to dest's parent,
+  // and the same for everything origin is attached to.
+  var incomers = dest.predecessors("node");
+  console.log("incomers:", incomers, "current dest parent", dest.parent())
+
+  incomers.setParent(dest.parent());
+}
 
 function getColor(name, node=null) {
   // Method to generate a color for the node that the method is called on.
@@ -123,26 +133,27 @@ function getColor(name, node=null) {
     return (matchBrackets('\'', name) || matchBrackets('\"', name) || matchBrackets('\`', name))
   }
 
-  if (node === null) {var sameNamedEles = cy.$("[name='" + name + "']");}
-  else {var sameNamedEles = cy.$("[name='" + name + "']").difference(node);}
+  if (name != "") {
+    if (node === null) {var sameNamedEles = cy.$("[name='" + name + "']");}
+    else {var sameNamedEles = cy.$("[name='" + name + "']").difference(node);}
 
-  // Look for something named the same, and make this node the same color.
-  if (sameNamedEles.length > 0) {
-    console.log("found similar", sameNamedEles.data("defaultColor"));
-    return sameNamedEles.data("defaultColor");
+    // Look for something named the same, and make this node the same color.
+    if (sameNamedEles.length > 0 && name != "") {
+      console.log("found similar", sameNamedEles.data("defaultColor"));
+      return sameNamedEles.data("defaultColor");
+    }
+    // If the name represents a string, make the node green.
+    else if (isString(name)) {
+      return 'lime';
+    }
+    // We want numbers (including floats, ints, etc) to be one color.
+    else if (!isNaN(name)) {
+      return 'blue';
+    }
   }
-  // If the name represents a string, make the node green.
-  else if (isString(name)) {
-    return 'lime';
-  }
-  // We want numbers (including floats, ints, etc) to be one color.
-  else if (!isNaN(name)) {
-    return 'blue';
-  }
+
   // Else generate a random color from a colormap (and convert it to hash).
-  else {
-    return '#' + interpolateLinearly(Math.random(), prism).map(x => Math.floor(255 * x).toString(16).padStart(2, "0")).join("");
-  }
+  return '#' + interpolateLinearly(Math.random(), prism).map(x => Math.floor(255 * x).toString(16).padStart(2, "0")).join("");
 }
 cytoscape('collection', 'getColor', function() {return getColor(this.data('name'), node=this)});
 
@@ -162,9 +173,24 @@ function rename(node, newName=null) {
     console.log("name:", node.data('name'))
     node.setColor()
   }
-
 };
 cytoscape('collection', 'rename', function(newName=null) {rename(this, newName=newName)});
+
+function setParent(newParent) {
+  if (newParent != null && newParent.id()) {
+  this.move({parent: newParent.id()})
+  }
+  else {
+    oldParent = this.parent()
+    this.move({parent: null})
+    if (oldParent.children().length == 0) {
+      console.log("deleting rudderless parent")
+      oldParent.remove()
+    }
+  }
+
+}
+cytoscape('collection', 'setParent', setParent);
 
 function toggleVariable () {
   this.data('variable', (!this.data('variable')))
@@ -187,7 +213,6 @@ remove = function (notifyRenderer) {
     }
   };
 
-<<<<<<< Updated upstream
   var self = this;
   var removed = [];
   var elesToRemove = [];
@@ -196,15 +221,6 @@ remove = function (notifyRenderer) {
 
   if (notifyRenderer === undefined) {
     notifyRenderer = true;
-=======
-function setParent(node, parent) {
-  node.move({parent: parent.id()})
-}
-
-function toggleVariable (target) {
-  if (!target.data('variable') || target.data('variable') == 'false') {
-    target.data('variable', 'true');
->>>>>>> Stashed changes
   }
 
   // add connected edges
@@ -341,8 +357,6 @@ function toggleVariable (target) {
 
   /*if (removedElements.size() > 0) {
     // must manually notify since trigger won't do this automatically once removed
-
-
   }*/
 
   // the parents who were modified by the removal need their style updated
@@ -369,7 +383,20 @@ function getName() {
   return newName
 }
 
-// Double-tap to add a new node
+// Double-tap to add a new node, or press n
+var mousePosition = {x:0, y:0};
+document.addEventListener('mousemove', function(mouseMoveEvent){
+  mousePosition.x = mouseMoveEvent.pageX;
+  mousePosition.y = mouseMoveEvent.pageY;
+}, false);
+
+Mousetrap.bind('n', function(e) {
+  // If all of them belong to the same parent, take them out of the parent.
+    pos = mousePosition;
+    newNode(Object.assign({}, pos));
+});
+
+
 var dclick_tappedBefore;
 var dclick_tappedTimeout;
 
@@ -392,25 +419,37 @@ cy.on('tap', function(event) {
   }
 });
 
-// Hold 'e' and tap to make a new edge
-var newEdge_tappedBefore;
-var newEdge_tappedTimeout;
+// Hold 'e' and tap a node to make a new edge
 cy.on('tap', 'node', function(event) {
-  var newEdge_tappedNow = event.target;
-  if (newEdge_tappedNow.isNode() && newEdge_tappedBefore && keys_pressed.has('E')) {
-    newEdge(newEdge_tappedBefore, newEdge_tappedNow)
+  var sources = cy.$('node:selected').difference(event.target)
+  if (sources.length > 0 && keys_pressed.has('e')) {
+    sources.map(source => newEdge(source, event.target))
   }
-  newEdge_tappedBefore = newEdge_tappedNow;
 });
 
 // l to 'lambda': wrap selection in a hypernode, containing the selection
 // and its closed neighbourhood, corresponding to a lambda function.
 Mousetrap.bind('l', function() {
-  var parent = newNode();
-  var componentz = cy.$('node:selected').closedNeighbourhood() ;
-  componentz.forEach(function(component){
-    setParent(component, parent);
-    })
+  // If all of them belong to the same parent, take them out of the parent.
+    var selected = cy.$('node:selected');
+    if (selected.parents().length == 1) {
+      selected.setParent(null);
+    }
+    else {
+      var parent = newNode();
+      var componentz = selected.closedNeighbourhood() ;
+
+      componentz.forEach(function(component){
+        component.setParent(parent);
+        })
+      selected.deselect();
+      parent.select();
+    }
+    var selected = cy.$('node:selected');
+    console.log("fixing parent for", selected)
+    fixParent(selected);
+
+
   },
   'keypress');
 
@@ -422,8 +461,8 @@ Mousetrap.bind('P', function() { toLisp(cy.$(':selected'));});
 
 // Recognise keys pressed down
 var keys_pressed = new Set()
-Mousetrap.bind('E', function() { keys_pressed.add('E');}, 'keypress');
-Mousetrap.bind('E', function() { keys_pressed.delete('E');}, 'keyup');
+Mousetrap.bind('e', function() { keys_pressed.add('e');}, 'keypress');
+Mousetrap.bind('e', function() { keys_pressed.delete('e');}, 'keyup');
 
 // save & load
 function saveState() {
@@ -465,12 +504,20 @@ function parse(node) {
   var compiledLisp = toLisp(node);
 
   function displayResult(lispOutput) {
-    var newHtml = /*compiledLisp + " :<br />*/"\>\> " + lispOutput;
+    //var newHtml = /*compiledLisp + " :<br />*/"\>\> " + lispOutput;
+    var newHtml = compiledLisp + " :<br />" + "\>\> " + lispOutput;
     document.getElementById("lispOutput").innerHTML = newHtml;
   }
   var biwa = new BiwaScheme.Interpreter(displayResult)
   biwa.evaluate(compiledLisp, displayResult);
 }
+
+function getRef(ele) {
+  // Gets name if there is one; else refer to the node by its id.
+  var name = ele.data("name");
+  return (name != "") ? name : ele.id();
+}
+
 
 function toLisp(node) {
   /* A node is either a:
@@ -480,16 +527,18 @@ function toLisp(node) {
     // the node is a lambda, or a define.
     // Evaluate subnodes, defs first.
     var subNodes = node.children()
-    var definitionNodes = subNodes.filter(isDefine);
-    // Hopefully there's exactly one execution node (?)
-    var executionNodes = subNodes.filter(n => (!isDefine(n) && subNodes.leaves().contains(n)));
+
     // Set up variables of the function.
-    var boundVariables = subNodes.filter("[?variable]").map(n => n.data("name")).sort();
+    var boundVariables = subNodes.filter("[?variable]").map(n => getRef(n)).sort();
     var stringedBVars = boundVariables.filter(function (el, i, arr) {
 	                                             return arr.indexOf(el) === i;}).join(" ")
 
+    var definitionNodes = subNodes.filter(isDefine);
+    // Hopefully there's exactly one execution node (?)
+    var executionNodes = subNodes.filter(n => (!isDefine(n) && subNodes.leaves().contains(n)));
+
     // Evaluate definitions
-    var definitions = definitionNodes.map(function(ele, i, eles) {return "(define " + ele.data("name")+ " " + toLisp(ele) + ")";});
+    var definitions = definitionNodes.map(function(ele, i, eles) {return "(define " + getRef(ele)+ " " + toLisp(ele) + ")";});
     var executions = executionNodes.map(function(ele, i, eles) {return toLisp(ele);});
     var runCode = definitions.concat(executions).join("\n")
 
@@ -500,11 +549,17 @@ function toLisp(node) {
 (double y))) 2)*/
   }
   else {
-    var openRepr = node.data("name")
+    var name = node.data("name");
+    var openRepr = (name != "") ? name : node.id();
   }
 
   var inbounds = node.incomers('edge')
   if (inbounds.length > 0) {
+    var edgeRefs = inbounds.sort(function(a,b) {
+        return getRef(a).localeCompare(getRef(b))})
+      .map(edge => toLisp(edge.source()));
+
+    /*
     var namedEdges = inbounds.filter('[?name]');
     var stringedNamedEdges = namedEdges
       .sort(function(a,b) {
@@ -514,9 +569,9 @@ function toLisp(node) {
     var unnamedEdges = inbounds.filter('[!name]');
     var stringedUnnamedEdges = unnamedEdges.map(function(edge) {
       return toLisp(edge.source());
-    })
-
-    stringedEdges = stringedNamedEdges.concat(stringedUnnamedEdges).join(" ")
+    })*/
+    var stringedEdges = edgeRefs.join(" ")
+    // stringedEdges = stringedNamedEdges.concat(stringedUnnamedEdges).join(" ")
     var closedRepr = "(" + openRepr + " " + stringedEdges + ")";
   }
   else {

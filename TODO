@@ -1,24 +1,19 @@
 
 FUNCTIONALITY
-> distinguish between lambda and define.
-> make defines happen alongside executions.
 > deal with zero-arity.
+> need to (at least be able to) specify variable scopes
 > Allow 'insertions' into names: (- {} 0) <- 3
   >> Evaluate whether this is a good idea! Readability versus elegance.
-> Deleting a parent shouldn't delete the children.
-  >> Related: option to remove nodes from lambda.
 > Undo
 > COMMENTS
-> When adding an arrow into an L'd node, the source/sink should be added to the L too.
-> If there's no label on the arrow, it shoudl use the name of the source instead.
+> The top level should be a 'universal scope', with defines defined.
+> Oh no, DEFUN is going to shit on my sandwich!
 
 UI
 http://js.cytoscape.org/#extensions
-> Order (unnamed) edges by anti-clockwise order
 > snap to grid
 > Better save/load interface
 > make a proper repl, with scrolling.
-> Have color check happen when renaming, as well as creating.
 > When creating common functions, it should prepopulate argument nodes.
   >> if, +-*/, iota, map, mod etc.
   >> In fact, most predefined functions if I can be bothered.
@@ -35,6 +30,13 @@ META
 
 DONE
 > colour strings (25/11/17)
+> distinguish between lambda and define.
+> make defines happen alongside executions.
+> Have color check happen when renaming, as well as creating.
+> Deleting a parent shouldn't delete the children.
+  >> Related: option to remove nodes from lambda.
+> When adding an arrow into an L'd node, the source/sink should be added to the L too.
+> If there's no label on the arrow, it shoudl use the name of the source instead.
 
 
 Packages:
